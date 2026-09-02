@@ -5,7 +5,7 @@ from warehouse_robot.core.config import WarehouseConfig
 
 def test_default_configuration_is_valid() -> None:
   config = WarehouseConfig()
-  assert config.width == 10
+  assert config.width == 15
   assert config.box_count == config.finish_count
 
 
