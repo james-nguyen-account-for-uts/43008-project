@@ -5,9 +5,9 @@ from dataclasses import dataclass
 class WarehouseConfig:
   """Values shared by the simulator, Gymnasium environment, and agents."""
 
-  width: int = 10
-  height: int = 10
-  obstacle_count: int = 12
+  width: int = 15
+  height: int = 15
+  obstacle_count: int = 10
   box_count: int = 3
   finish_count: int = 3
   max_steps: int = 250
