@@ -254,6 +254,4 @@ class WarehouseSimulation:
     Finish zones are enterable. Obstacles and boxes currently block movement until box interaction is implemented.
     """
 
-    return (
-      self.is_inside(position) and not self.is_obstacle(position)
-      and not self.is_box(position))
+    return (self.is_inside(position) and not self.is_obstacle(position))

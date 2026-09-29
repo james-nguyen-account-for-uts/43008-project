@@ -144,8 +144,9 @@ def test_robot_cannot_enter_obstacle(
   assert not simulation.can_robot_enter(Position(row=0, column=0))
 
 
-def test_robot_cannot_enter_box(simulation: WarehouseSimulation, ) -> None:
-  assert not simulation.can_robot_enter(Position(row=1, column=3))
+def test_robot_can_enter_box(simulation: WarehouseSimulation, ) -> None:
+  assert simulation.is_box(Position(row=1, column=3))
+  assert simulation.can_robot_enter(Position(row=1, column=3))
 
 
 def test_robot_cannot_leave_warehouse(
