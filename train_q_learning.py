@@ -1,6 +1,7 @@
 from warehouse_robot.agents import QLearningAgent
 from warehouse_robot.core.config import WarehouseConfig
 from warehouse_robot.environment import WarehouseEnv
+from warehouse_robot.visualisation import PygameVisualiser
 
 TRAINING_EPISODES = 5000
 EVALUATION_EPISODES = 100
@@ -9,6 +10,7 @@ LAYOUT_SEED = 234567
 # Output options
 SHOW_DEMONSTRATION = True
 SHOW_EACH_STEP = False
+SHOW_GUI_VISUALISATION = True
 
 
 def main() -> None:
@@ -99,6 +101,43 @@ def main() -> None:
       environment=environment,
       agent=agent,
       show_each_step=SHOW_EACH_STEP,
+    )
+
+  if SHOW_GUI_VISUALISATION:
+    visualiser = PygameVisualiser(
+      environment=environment,
+      cell_size=42,
+      side_panel_width=300,
+      fps=6,
+    )
+
+    visualisation_result = visualiser.run_trained_policy(
+      agent=agent,
+    )
+
+    print()
+    print("=" * 60)
+    print("GUI visualisation summary")
+    print("=" * 60)
+    print(
+      f"Success         : "
+      f"{visualisation_result['success']}"
+    )
+    print(
+      f"Total reward    : "
+      f"{visualisation_result['total_reward']:.2f}"
+    )
+    print(
+      f"Total steps     : "
+      f"{visualisation_result['steps']}"
+    )
+    print(
+      f"Boxes delivered : "
+      f"{visualisation_result['delivered']}"
+    )
+    print(
+      f"Invalid actions : "
+      f"{visualisation_result['invalid_actions']}"
     )
 
 
