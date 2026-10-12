@@ -153,14 +153,55 @@ class PygameVisualiser:
       state = self.environment.get_state_key()
 
       self.draw(
-        last_action=last_action,
-        reward=last_reward,
-        total_reward=total_reward,
-        terminated=terminated,
-        truncated=truncated,
+        last_action=None,
+        reward=0.0,
+        total_reward=0.0,
+        terminated=False,
+        truncated=False,
       )
 
-      self._wait_for_next_frame()
+      # Wait for the Start button before running the simulation.
+      self._wait_for_start()
+
+      # Run the trained policy
+      while (
+        not terminated
+        and not truncated
+        and self.running
+      ):
+        self._handle_events()
+
+        if not self.running:
+          break
+
+        action_value = agent.choose_action(
+          state,
+          training=False,
+        )
+
+        last_action = Action(action_value)
+
+        (
+          _,
+          last_reward,
+          terminated,
+          truncated,
+          info,
+        ) = self.environment.step(action_value)
+
+        total_reward += last_reward
+
+        state = self.environment.get_state_key()
+
+        self.draw(
+          last_action=last_action,
+          reward=last_reward,
+          total_reward=total_reward,
+          terminated=terminated,
+          truncated=truncated,
+        )
+
+        self._wait_for_next_frame()
 
     # Keep final state visible for a short period.
     if self.running:
@@ -560,7 +601,7 @@ class PygameVisualiser:
 
     # Display the panel title.
     self._draw_text(
-      "Q-Learning Robot",
+      "Warehouse Robot",
       x,
       y,
       self.large_font,
@@ -748,12 +789,11 @@ class PygameVisualiser:
       border_radius=15,
     )
 
-    self._draw_text(
-      f"{status_text}",
-      x + 28,
-      406,
-      self.small_font,
+    self._draw_centered_text(
+      status_text,
+      badge_rect,
       status_fg,
+      self.small_font,
     )
 
     self._draw_text(
@@ -893,6 +933,60 @@ class PygameVisualiser:
       elif event.type == pygame.KEYDOWN:
         if event.key == pygame.K_ESCAPE:
           self.running = False
+
+  def _wait_for_start(self) -> None:
+    """Wait for the user to click the Start button."""
+
+    # Create the Start button.
+    button = pygame.Rect(0, 0, 150, 45)
+    button.center = (
+      self.grid_width // 2,
+      self.grid_height // 2,
+    )
+
+    # Draw a shadow.
+    pygame.draw.rect(
+      self.screen,
+      (130, 35, 35),
+      button.move(3, 4),
+      border_radius=8,
+    )
+
+    # Draw the red Start button.
+    pygame.draw.rect(
+      self.screen,
+      (220, 65, 65),
+      button,
+      border_radius=8,
+    )
+
+    self._draw_centered_text(
+      "START",
+      button,
+      (255, 255, 255),
+      self.font,
+    )
+
+    pygame.display.flip()
+
+    # Wait until the Start button is clicked.
+    while self.running:
+      for event in pygame.event.get():
+
+        if event.type == pygame.QUIT:
+          self.running = False
+
+        elif event.type == pygame.KEYDOWN:
+          if event.key == pygame.K_ESCAPE:
+            self.running = False
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+          if event.button == 1 and button.collidepoint(event.pos):
+            self.draw()
+            return
+
+      self.clock.tick(30)
+
 
   def _wait_for_next_frame(self) -> None:
     """Wait according to configured visualisation FPS."""
