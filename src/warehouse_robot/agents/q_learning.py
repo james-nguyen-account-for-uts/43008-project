@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import random
 from collections import defaultdict
 from dataclasses import dataclass
-import random
 
 import numpy as np
 
@@ -107,6 +107,10 @@ class QLearningAgent:
 
     self.q_table[state][action] += (self.learning_rate * temporal_difference)
 
+  def learning_reward(self, state, next_state, reward, terminated):
+    """Override to supply training-only reward shaping."""
+    return reward
+
   def decay_exploration(self) -> None:
     """Reduce epsilon after each training episode."""
 
@@ -155,7 +159,7 @@ class QLearningAgent:
         self.update(
           state=state,
           action=action,
-          reward=reward,
+          reward=self.learning_reward(state, next_state, reward, terminated),
           next_state=next_state,
           terminated=terminated,
         )

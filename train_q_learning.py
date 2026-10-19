@@ -1,216 +1,64 @@
-from warehouse_robot.agents import QLearningAgent
+"""Train a transferable hybrid Q-learning policy; evaluate on unseen maps."""
+import argparse
+import json
+from dataclasses import asdict
+from pathlib import Path
+
+from warehouse_robot.agents import NavigationQLearningAgent
 from warehouse_robot.core.config import WarehouseConfig
 from warehouse_robot.environment import WarehouseEnv
-from warehouse_robot.visualisation import PygameVisualiser
-
-TRAINING_EPISODES = 5000
-EVALUATION_EPISODES = 100
-LAYOUT_SEED = 234567
-
-# Output options
-SHOW_DEMONSTRATION = True
-SHOW_EACH_STEP = False
-SHOW_GUI_VISUALISATION = True
 
 
-def main() -> None:
-  config = WarehouseConfig(
-    width=15,
-    height=15,
-    obstacle_count=10,
-    box_count=3,
-    finish_count=3,
-    max_steps=250,
-    seed=LAYOUT_SEED,
-  )
-
-  environment = WarehouseEnv(
-    config=config,
-    layout_seed=LAYOUT_SEED,
-  )
-
-  agent = QLearningAgent(
-    action_count=environment.action_space.n,
-    learning_rate=0.1,
-    discount_factor=0.95,
-    epsilon=1.0,
-    epsilon_decay=0.998,
-    minimum_epsilon=0.05,
-    seed=42,
-  )
-
-  print("=" * 60)
-  print("Warehouse Robot Q-Learning")
-  print("=" * 60)
-  print(f"Layout seed       : {environment.layout_seed}")
-  print(f"Grid size         : {config.width}x{config.height}")
-  print(f"Obstacle blocks   : {config.obstacle_count}")
-  print(f"Boxes             : {config.box_count}")
-  print(f"Training episodes : {TRAINING_EPISODES}")
-  print()
-
-  print("Initial warehouse:")
-  environment.reset()
-  print(environment.render())
-  print()
-
-  training_result = agent.train(
-    environment=environment,
-    episodes=TRAINING_EPISODES,
-    report_interval=500,
-  )
-
-  evaluation = agent.evaluate(
-    environment=environment,
-    episodes=EVALUATION_EPISODES,
-  )
-
-  print()
-  print("=" * 60)
-  print("Training summary")
-  print("=" * 60)
-  print(
-    f"Overall training success rate : "
-    f"{training_result.success_rate * 100:.2f}%")
-  print(
-    f"Average training reward       : "
-    f"{training_result.average_reward:.2f}")
-  print(
-    f"Average training steps        : "
-    f"{training_result.average_steps:.2f}")
-  print(f"Q-table states                : "
-        f"{len(agent.q_table)}")
-
-  print()
-  print("=" * 60)
-  print("Evaluation results")
-  print("=" * 60)
-  print(
-    f"Success rate            : "
-    f"{evaluation['success_rate'] * 100:.2f}%")
-  print(f"Average reward          : "
-        f"{evaluation['average_reward']:.2f}")
-  print(f"Average steps           : "
-        f"{evaluation['average_steps']:.2f}")
-  print(
-    f"Average invalid actions : "
-    f"{evaluation['average_invalid_actions']:.2f}")
-
-  if SHOW_DEMONSTRATION:
-    demonstrate_policy(
-      environment=environment,
-      agent=agent,
-      show_each_step=SHOW_EACH_STEP,
-    )
-
-  if SHOW_GUI_VISUALISATION:
-    visualiser = PygameVisualiser(
-      environment=environment,
-      cell_size=42,
-      side_panel_width=300,
-      fps=6,
-    )
-
-    visualisation_result = visualiser.run_trained_policy(
-      agent=agent,
-    )
-
-    print()
-    print("=" * 60)
-    print("GUI visualisation summary")
-    print("=" * 60)
-    print(
-      f"Success         : "
-      f"{visualisation_result['success']}"
-    )
-    print(
-      f"Total reward    : "
-      f"{visualisation_result['total_reward']:.2f}"
-    )
-    print(
-      f"Total steps     : "
-      f"{visualisation_result['steps']}"
-    )
-    print(
-      f"Boxes delivered : "
-      f"{visualisation_result['delivered']}"
-    )
-    print(
-      f"Invalid actions : "
-      f"{visualisation_result['invalid_actions']}"
-    )
+def parse_arguments():
+  parser = argparse.ArgumentParser(description=__doc__)
+  parser.add_argument("--episodes", type=int, default=3000)
+  parser.add_argument("--eval-maps", type=int, default=100)
+  parser.add_argument("--seed", type=int, default=42)
+  parser.add_argument("--width", type=int, default=15)
+  parser.add_argument("--height", type=int, default=15)
+  parser.add_argument("--obstacles", type=int, default=10)
+  parser.add_argument("--boxes", type=int, default=3)
+  parser.add_argument("--max-steps", type=int, default=500)
+  parser.add_argument("--model", default="models/navigation_q.json")
+  args = parser.parse_args()
+  if args.episodes <= 0 or args.eval_maps <= 0 or args.boxes <= 0:
+    parser.error("episodes, eval-maps, and boxes must be positive")
+  return args
 
 
-def demonstrate_policy(
-  environment: WarehouseEnv,
-  agent: QLearningAgent,
-  show_each_step: bool = False,
-) -> None:
-  """
-  Run one episode using the trained greedy policy.
+def main():
+  args = parse_arguments()
+  config = WarehouseConfig(width=args.width, height=args.height,
+    obstacle_count=args.obstacles, box_count=args.boxes, finish_count=args.boxes,
+    max_steps=args.max_steps, seed=args.seed)
+  environment = WarehouseEnv(config, layout_seed=args.seed, randomize_layout=True)
+  # Seed the random-map stream once. Subsequent resets draw a new layout seed.
+  environment.reset(seed=args.seed)
+  agent = NavigationQLearningAgent(action_count=6, epsilon_decay=0.998, seed=args.seed)
+  print("Training hybrid Q-learning on a new generated map each episode.", flush=True)
+  result = agent.train(environment, episodes=args.episodes,
+                       report_interval=max(1, min(100, args.episodes)))
 
-  If show_each_step is False, only the initial state,
-  final state, and demonstration summary are printed.
-  """
-
-  environment.reset()
-  state = environment.get_state_key()
-
-  terminated = False
-  truncated = False
-  total_reward = 0.0
-
-  print()
-  print("=" * 60)
-  print("Trained policy demonstration")
-  print("=" * 60)
-
-  print("Initial state:")
-  print(environment.render())
-
-  while not terminated and not truncated:
-    action = agent.choose_action(
-      state,
-      training=False,
-    )
-
-    (
-      _,
-      reward,
-      terminated,
-      truncated,
-      info,
-    ) = environment.step(action)
-
-    state = environment.get_state_key()
-    total_reward += reward
-
-    if show_each_step:
-      print()
-      print(
-        f"Step: {info['steps']} | "
-        f"Action: {action} | "
-        f"Reward: {reward:.1f}")
-      print(environment.render())
-
-  print()
-  print("Final state:")
-  print(environment.render())
-
-  print()
-  print("=" * 60)
-  print("Demonstration summary")
-  print("=" * 60)
-  print(f"Success         : {info['success']}")
-  print(f"Total reward    : {total_reward:.2f}")
-  print(f"Total steps     : {info['steps']}")
-  print(f"Boxes delivered : {info['delivered']}")
-  print(f"Invalid actions : {info['invalid_actions']}")
-
-  if terminated:
-    print("Result          : All boxes delivered successfully")
-  elif truncated:
-    print("Result          : Episode reached the step limit")
+  # Training seeds come from [0, 2**31); evaluation uses a disjoint range.
+  evaluation_seeds = [2**32 + i * 1000 for i in range(args.eval_maps)]
+  records = []
+  for seed in evaluation_seeds:
+    evaluation_env = WarehouseEnv(config, layout_seed=seed)
+    metrics = agent.evaluate(evaluation_env, episodes=1)
+    records.append({"layout_seed": evaluation_env.layout_seed, **metrics})
+  summary = {key: sum(row[key] for row in records) / len(records)
+             for key in ("success_rate", "average_reward", "average_steps", "average_invalid_actions")}
+  metadata = {"episodes": args.episodes, "seed": args.seed,
+              "training_success_rate": result.success_rate, "evaluation": summary,
+              "evaluation_maps": records,
+              "method": "Q-learning on BFS nearest-target features; no global optimality guarantee"}
+  agent.save(args.model, asdict(config), metadata)
+  report = Path(args.model).with_suffix(".evaluation.json")
+  report.write_text(json.dumps(metadata, indent=2))
+  print("Unseen-map evaluation:", json.dumps(summary, indent=2))
+  print(f"Saved model: {args.model}")
+  print(f"Saved evaluation: {report}")
+  print(f"Watch: python visualise_policy.py --model {args.model}")
 
 
 if __name__ == "__main__":
