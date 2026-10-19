@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Any
+from typing import Any, ClassVar
 
 import gymnasium as gym
 import numpy as np
@@ -9,25 +9,22 @@ from gymnasium import spaces
 
 from warehouse_robot.core.config import WarehouseConfig
 from warehouse_robot.core.types import Action, Position, Tile
-from warehouse_robot.simulation.warehouse import (
-  WarehouseSimulation,
-  WarehouseState,
-)
+from warehouse_robot.simulation.warehouse import WarehouseSimulation, WarehouseState
 
 
 class WarehouseEnv(gym.Env):
   """
-    Gymnasium environment for warehouse robot navigation.
+  Gymnasium environment for warehouse robot navigation.
 
-    The robot must:
+  The robot must:
 
-    1. Navigate to a box.
-    2. Use PICK_UP while standing on the box.
-    3. Navigate to an unused finish zone.
-    4. Use DROP_OFF while standing on the finish zone.
-    """
+  1. Navigate to a box.
+  2. Use PICK_UP while standing on the box.
+  3. Navigate to an unused finish zone.
+  4. Use DROP_OFF while standing on the finish zone.
+  """
 
-  metadata = {
+  metadata: ClassVar[dict[str, Any]] = {
     "render_modes": ["ansi"],
     "render_fps": 4,
   }
@@ -37,9 +34,11 @@ class WarehouseEnv(gym.Env):
     config: WarehouseConfig,
     layout_seed: int = 42,
     render_mode: str | None = None,
+    randomize_layout: bool = False,
   ) -> None:
     super().__init__()
 
+    self.randomize_layout = randomize_layout
     self.config = config
     self.layout_seed = layout_seed
     self.render_mode = render_mode
@@ -53,6 +52,7 @@ class WarehouseEnv(gym.Env):
 
     self.observation_space = spaces.Dict(
       {
+        "obstacles": spaces.MultiBinary(total_cells),
         "robot": spaces.MultiDiscrete([
           config.height,
           config.width,
@@ -80,10 +80,7 @@ class WarehouseEnv(gym.Env):
     starting_seed: int,
     maximum_attempts: int = 100,
   ) -> WarehouseState:
-    """
-        Generate a warehouse in which the robot, boxes, and finish
-        zones are connected through non-obstacle cells.
-        """
+    """Generate a warehouse in which the robot, boxes, and finish zones are connected through non-obstacle cells."""
 
     for attempt in range(maximum_attempts):
       candidate_seed = starting_seed + attempt
@@ -141,14 +138,14 @@ class WarehouseEnv(gym.Env):
     seed: int | None = None,
     options: dict[str, Any] | None = None,
   ) -> tuple[dict[str, np.ndarray | int], dict[str, Any]]:
-    """
-        Reset the episode to the same initial warehouse layout.
-
-        The layout stays fixed during training so tabular Q-learning
-        can learn a stable state-action mapping.
-        """
+    """Restore the layout, or generate one when seeded or randomize_layout is enabled."""
 
     super().reset(seed=seed)
+
+    if seed is not None or self.randomize_layout:
+      selected_seed = seed if seed is not None else int(
+        self.np_random.integers(0, 2**31))
+      self.initial_state = self._generate_reachable_layout(selected_seed)
 
     self.robot_position = self.initial_state.robot
     self.boxes = set(self.initial_state.boxes)
@@ -236,14 +233,6 @@ class WarehouseEnv(gym.Env):
 
     self.robot_position = candidate_position
 
-    # Slightly larger reward when reaching a useful location.
-    if (not self.carrying_box and self.robot_position in self.boxes):
-      return 2.0
-
-    if (self.carrying_box and self.robot_position in self.finish_zones
-        and self.robot_position not in self.used_finish_zones):
-      return 2.0
-
     return -1.0
 
   def _pick_up_box(self) -> float:
@@ -306,7 +295,14 @@ class WarehouseEnv(gym.Env):
       if finish not in self.used_finish_zones:
         finish_array[index] = 1
 
+    obstacles_array = np.zeros(
+      self.config.width * self.config.height, dtype=np.int8)
+    for position in self.initial_state.obstacle_positions:
+      obstacles_array[position.row * self.config.width + position.column] = 1
+
     return {
+      "obstacles":
+      obstacles_array,
       "robot":
       np.array(
         [
@@ -329,8 +325,7 @@ class WarehouseEnv(gym.Env):
     """
         Return a hashable state used by the Q-learning table.
 
-        Obstacles do not need to appear here because the training
-        layout remains fixed.
+        Include the complete layout so different maps cannot alias.
         """
 
     sorted_boxes = tuple(
@@ -347,6 +342,12 @@ class WarehouseEnv(gym.Env):
       int(self.carrying_box),
       sorted_boxes,
       sorted_used_destinations,
+      tuple(
+        sorted(
+          (p.row, p.column) for p in self.initial_state.obstacle_positions)),
+      tuple(sorted((p.row, p.column) for p in self.finish_zones)),
+      self.config.height,
+      self.config.width,
     )
 
   def _get_info(self) -> dict[str, Any]:
