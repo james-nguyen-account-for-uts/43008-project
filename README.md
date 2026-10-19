@@ -100,3 +100,20 @@ and the learned feature abstraction **do not guarantee the globally shortest
 complete delivery route**. Measure unseen-map success and steps in the saved
 report; an exact delivery-order planner is needed to certify optimality. Training
 longer alone does not provide that guarantee.
+
+## Evaluation dashboard for demos
+
+```bash
+python show_evaluation.py
+```
+
+This opens a standalone HTML report in your browser without retraining. Click
+**Full screen** for recording a demo. It shows the training episode count,
+unseen-map success, actions on successful maps, average reward, invalid actions,
+a map-by-map action chart, and expandable seeds/results. The HTML is self-contained
+and works offline. Future training runs automatically regenerate it and record
+per-episode history for a training-success curve (100-episode blocks). Older
+saved results still work, but cannot show a learning curve that was not recorded.
+
+Use `--results PATH` for another evaluation JSON, `--output PATH` to choose where
+the HTML goes, or `--no-open` to generate it without launching a browser.

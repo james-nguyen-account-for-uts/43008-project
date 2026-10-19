@@ -7,6 +7,7 @@ from pathlib import Path
 from warehouse_robot.agents import NavigationQLearningAgent
 from warehouse_robot.core.config import WarehouseConfig
 from warehouse_robot.environment import WarehouseEnv
+from warehouse_robot.evaluation_report import write_evaluation_report
 
 
 def parse_arguments():
@@ -50,11 +51,16 @@ def main():
              for key in ("success_rate", "average_reward", "average_steps", "average_invalid_actions")}
   metadata = {"episodes": args.episodes, "seed": args.seed,
               "training_success_rate": result.success_rate, "evaluation": summary,
+              "training_history": {"rewards": result.episode_rewards,
+                                   "steps": result.episode_steps,
+                                   "success": result.success_history},
               "evaluation_maps": records,
               "method": "Q-learning on BFS nearest-target features; no global optimality guarantee"}
   agent.save(args.model, asdict(config), metadata)
   report = Path(args.model).with_suffix(".evaluation.json")
   report.write_text(json.dumps(metadata, indent=2))
+  dashboard = write_evaluation_report(metadata, report.with_suffix(".html"))
+  print(f"Saved dashboard: {dashboard}")
   print("Unseen-map evaluation:", json.dumps(summary, indent=2))
   print(f"Saved model: {args.model}")
   print(f"Saved evaluation: {report}")
