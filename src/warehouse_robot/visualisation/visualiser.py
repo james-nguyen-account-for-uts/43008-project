@@ -11,7 +11,6 @@ from warehouse_robot.environment import WarehouseEnv
 class AgentProtocol(Protocol):
   """Minimum interface required by the visualiser."""
 
-  
   def choose_action(
     self,
     state: tuple,
@@ -38,17 +37,11 @@ class PygameVisualiser:
     self.fps = fps
 
     # Calculate grid and window dimensions
-    self.grid_width = (
-      environment.config.width * self.cell_size
-    )
+    self.grid_width = (environment.config.width * self.cell_size)
 
-    self.grid_height = (
-      environment.config.height * self.cell_size
-    )
+    self.grid_height = (environment.config.height * self.cell_size)
 
-    self.window_width = (
-      self.grid_width + self.side_panel_width
-    )
+    self.window_width = (self.grid_width + self.side_panel_width)
 
     self.window_height = max(
       self.grid_height,
@@ -59,15 +52,13 @@ class PygameVisualiser:
     pygame.init()
 
     pygame.display.set_caption(
-      "Warehouse Robot - Q-Learning Visualisation"
-    )
+      "Warehouse Robot - Space: pause/resume | Esc: close")
 
     self.screen = pygame.display.set_mode(
       (
         self.window_width,
         self.window_height,
-      )
-    )
+      ))
 
     self.clock = pygame.time.Clock()
 
@@ -89,7 +80,6 @@ class PygameVisualiser:
 
     self.running = True
 
- 
   def run_trained_policy(
     self,
     agent: AgentProtocol,
@@ -119,89 +109,32 @@ class PygameVisualiser:
       truncated=False,
     )
 
-    self._wait_for_next_frame()
+    self.clock.tick(self.fps)
 
-    # Run the trained policy until the episode ends.
-    while (
-      not terminated
-      and not truncated
-      and self.running
-    ):
-
-      self._handle_events()
-
+    self._wait_for_start()
+    paused = False
+    while not terminated and not truncated and self.running:
+      for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+          self.running = False
+        elif event.type == pygame.KEYDOWN:
+          if event.key == pygame.K_ESCAPE:
+            self.running = False
+          elif event.key == pygame.K_SPACE:
+            paused = not paused
       if not self.running:
         break
-
-      action_value = agent.choose_action(
-        state,
-        training=False,
-      )
-
+      if paused:
+        self.clock.tick(30)
+        continue
+      action_value = agent.choose_action(state, training=False)
       last_action = Action(action_value)
-
-      (
-        _,
-        last_reward,
-        terminated,
-        truncated,
-        info,
-      ) = self.environment.step(action_value)
-
+      _, last_reward, terminated, truncated, info = self.environment.step(
+        action_value)
       total_reward += last_reward
-
       state = self.environment.get_state_key()
-
-      self.draw(
-        last_action=None,
-        reward=0.0,
-        total_reward=0.0,
-        terminated=False,
-        truncated=False,
-      )
-
-      # Wait for the Start button before running the simulation.
-      self._wait_for_start()
-
-      # Run the trained policy
-      while (
-        not terminated
-        and not truncated
-        and self.running
-      ):
-        self._handle_events()
-
-        if not self.running:
-          break
-
-        action_value = agent.choose_action(
-          state,
-          training=False,
-        )
-
-        last_action = Action(action_value)
-
-        (
-          _,
-          last_reward,
-          terminated,
-          truncated,
-          info,
-        ) = self.environment.step(action_value)
-
-        total_reward += last_reward
-
-        state = self.environment.get_state_key()
-
-        self.draw(
-          last_action=last_action,
-          reward=last_reward,
-          total_reward=total_reward,
-          terminated=terminated,
-          truncated=truncated,
-        )
-
-        self._wait_for_next_frame()
+      self.draw(last_action, last_reward, total_reward, terminated, truncated)
+      self.clock.tick(self.fps)
 
     # Keep final state visible for a short period.
     if self.running:
@@ -267,7 +200,6 @@ class PygameVisualiser:
 
     pygame.quit()
 
-  
   # Warehouse drawing
   def _draw_grid(self) -> None:
     """Draw warehouse grid cells."""
@@ -276,9 +208,7 @@ class PygameVisualiser:
     grid_colour = (205, 205, 205)
 
     # Draw horizontal grid lines.
-    for row in range(
-      self.environment.config.height + 1
-    ):
+    for row in range(self.environment.config.height + 1):
       y = row * self.cell_size
 
       pygame.draw.line(
@@ -290,9 +220,7 @@ class PygameVisualiser:
       )
 
     # Draw vertical grid lines.
-    for column in range(
-      self.environment.config.width + 1
-    ):
+    for column in range(self.environment.config.width + 1):
       x = column * self.cell_size
 
       pygame.draw.line(
@@ -312,9 +240,7 @@ class PygameVisualiser:
     highlight_colour = (96, 114, 140)
 
     # Get obstacle positions from the environment.
-    for position in (
-      self.environment.initial_state.obstacle_positions
-    ):
+    for position in (self.environment.initial_state.obstacle_positions):
       rectangle = self._cell_rectangle(
         position.row,
         position.column,
@@ -361,9 +287,7 @@ class PygameVisualiser:
       )
 
       # Display completed finish zones with a DONE.
-      if position in (
-        self.environment.used_finish_zones
-      ):
+      if position in (self.environment.used_finish_zones):
         colour = (170, 220, 170)
 
         pygame.draw.rect(
@@ -412,7 +336,6 @@ class PygameVisualiser:
           rectangle.center,
           3,
         )
-
 
   def _draw_boxes(self) -> None:
     """Draw all undelivered boxes."""
@@ -508,7 +431,8 @@ class PygameVisualiser:
     cx, cy = rect.center
 
     # Change colour when carrying a box.
-    colour = (130, 90, 210) if self.environment.carrying_box else (70, 130, 220)
+    colour = (130, 90,
+              210) if self.environment.carrying_box else (70, 130, 220)
 
     # Draw wheels.
     pygame.draw.rect(
@@ -627,9 +551,7 @@ class PygameVisualiser:
       (55, 85, 150),
     )
 
-    action_name = (
-      last_action.name if last_action is not None else "START"
-    )
+    action_name = (last_action.name if last_action is not None else "START")
 
     info_rows = [
       ("Step", str(self.environment.current_step)),
@@ -640,7 +562,8 @@ class PygameVisualiser:
       ("Carrying box", str(self.environment.carrying_box)),
       (
         "Delivered",
-        f"{self.environment.delivered_count} / {self.environment.config.box_count}",),
+        f"{self.environment.delivered_count} / {self.environment.config.box_count}",
+      ),
       ("Remaining boxes", str(len(self.environment.boxes))),
       ("Invalid actions", str(self.environment.invalid_action_count)),
     ]
@@ -910,9 +833,7 @@ class PygameVisualiser:
       colour,
     )
 
-    text_rectangle = surface.get_rect(
-      center=rectangle.center,
-    )
+    text_rectangle = surface.get_rect(center=rectangle.center, )
 
     # Draw the text at the center of the rectangle.
     self.screen.blit(
@@ -927,12 +848,8 @@ class PygameVisualiser:
     for event in pygame.event.get():
 
       # Stop the simulation when the window is closed.
-      if event.type == pygame.QUIT:
+      if event.type == pygame.QUIT or event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
         self.running = False
-
-      elif event.type == pygame.KEYDOWN:
-        if event.key == pygame.K_ESCAPE:
-          self.running = False
 
   def _wait_for_start(self) -> None:
     """Wait for the user to click the Start button."""
@@ -980,13 +897,12 @@ class PygameVisualiser:
           if event.key == pygame.K_ESCAPE:
             self.running = False
 
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-          if event.button == 1 and button.collidepoint(event.pos):
-            self.draw()
-            return
+        elif (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+              and button.collidepoint(event.pos)):
+          self.draw()
+          return
 
       self.clock.tick(30)
-
 
   def _wait_for_next_frame(self) -> None:
     """Wait according to configured visualisation FPS."""
